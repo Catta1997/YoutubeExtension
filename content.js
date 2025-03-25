@@ -1,4 +1,8 @@
-const highlightWords = ["schifo", "merda", "dio", "madonna", "fascista", "razzista","face", "faccia", "stronza", "chiami", "fidanzato", "fidanzata"]
+
+
+
+
+const highlightWords = ["schifo", "merda", "dio", "madonna", "fascista", "razzista","reveal", "faccia", "stronza", "chiami", "fidanzato", "fidanzata", "inizia", "iniziamo", "giochiamo", "canale"]
 
 function customLog(message) {
   console.log(message); // continua a loggare in console normale
@@ -69,11 +73,19 @@ function highlightMessageWords(messageElement) {
   const deletedSpan = messageElement.querySelector("#deleted-state");
 
   // Solo se NON è eliminato
-  if (messageSpan && !deletedSpan) {
+  if (!deletedSpan.dataset.processed) {
     let messageHTML = messageSpan.innerHTML;
     highlightWords.forEach(word => {
-      let regex = new RegExp(`(${word})`, 'gi');
-      customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
+      let regex = new RegExp(`\\b${word}\\b`, 'gi');
+
+      // Assegniamo il risultato della sostituzione
+      let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
+
+      // Log solo se è stato effettivamente modificato
+      if (newMessageHTML !== messageHTML) {
+        customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
+        messageHTML = newMessageHTML;
+      }
     });
     messageSpan.innerHTML = messageHTML;
   }
