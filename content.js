@@ -29,50 +29,6 @@ function customLog(message) {
   });
 }
 
-function insertSpaces(str) {
-  let result = '';
-  let temp = '';
-  let i = 0;
-  const length = str.length;
-
-  while (i < length) {
-    // Gestione Emote <img ...>
-    if (str.startsWith('<img', i)) {
-      const closingIndex = str.indexOf('>', i);
-      if (closingIndex !== -1) {
-        result += str.slice(i, closingIndex + 1);
-        i = closingIndex + 1;
-        continue;
-      }
-    }
-
-    // Gestione Emote :xxxx:
-    if (str[i] === ':') {
-      const closingIndex = str.indexOf(':', i + 1);
-      if (closingIndex !== -1) {
-        result += str.slice(i, closingIndex + 1);
-        i = closingIndex + 1;
-        continue;
-      }
-    }
-    const char = str[i];
-    if (char !== ' ') {
-      temp += char;
-      while (temp.length >= 32) {
-        result += temp.slice(0, 30) + ' ';
-        temp = temp.slice(40);
-      }
-
-    } else {
-      result += temp + ' ';
-      temp = '';
-    }
-    i++;
-  }
-  result += temp;
-  return result;
-}
-
 function getChatFrameDocument() {
   const iframe = document.querySelector("iframe#chatframe");
   return iframe ? iframe.contentDocument || iframe.contentWindow.document : null;
@@ -84,16 +40,12 @@ function getChatContainer(chatDoc) {
 
 function highlightMessageWords(messageElement) {
   let messageSpan = messageElement.querySelector("#message");
-  const deletedSpan = messageElement.querySelector("#deleted-state");
-
-  // Solo se NON è eliminato
   let messageHTML = messageSpan.innerHTML;
+
   highlightWords.forEach(word => {
     let regex = new RegExp(`\\b${word}\\b`, 'gi');
 
-    // Assegniamo il risultato della sostituzione
     let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
-    // Log solo se è stato effettivamente modificato
     if (newMessageHTML !== messageHTML) {
       messageElement.style.backgroundColor = "rgba(224,195,8,0.87)";
       customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
@@ -101,6 +53,34 @@ function highlightMessageWords(messageElement) {
     }
     });
     messageSpan.innerHTML = messageHTML;
+}
+
+function processDeletedMessages(message) {
+  if (message.hasAttribute("is-deleted")) {
+    message.removeAttribute("is-deleted");
+    message.removeAttribute("show-bar");
+
+    let messageSpan = message.querySelector("#message");
+    let deletedSpan = message.querySelector("#deleted-state");
+
+    if (messageSpan && deletedSpan) {
+      message.style.backgroundColor = "rgba(139, 0, 0, 0.6)";
+      let deletedText = deletedSpan.innerText.trim();
+
+      console.log(`🔨 Processo messaggio eliminato: ${messageSpan.innerHTML}`);
+      customLog(`🔨 Processo messaggio eliminato da: ${deletedSpan.innerText}`)
+
+      messageSpan.innerHTML += ` (${deletedText})`;
+      deletedSpan.innerText = "";
+
+      const showOriginal = message.querySelector("#show-original");
+      if (showOriginal) {
+        showOriginal.remove();
+      }
+      messageSpan.style.textDecoration = "underline";
+      messageSpan.style.color = "rgba(255, 255, 255, 0.5)";
+    }
+  }
 }
 
 function updateDeletedMessages() {
@@ -113,8 +93,6 @@ function updateDeletedMessages() {
   const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
   messages.forEach((message) => {
     let mod = false
-    const prevSibling = message.querySelector("#message");
-    const deletedSpan = message.querySelector("#deleted-state");
     let badges = message.querySelectorAll("yt-live-chat-author-badge-renderer");
     badges.forEach(element => {
       if (element.ariaLabel === "Moderatore"){
@@ -126,41 +104,7 @@ function updateDeletedMessages() {
       highlightMessageWords(message);
       message.dataset.highlighted = "true";
     }
-
-    if (prevSibling && deletedSpan) {
-      const deletedText = deletedSpan.innerText;
-      if (deletedText.includes("Messaggio eliminato da") || deletedText.includes("[messaggio")) {
-        if (!deletedSpan.dataset.processed) {
-          customLog(`🔨 Processo messaggio eliminato: ${prevSibling.innerHTML}`);
-          const messageEdited = `${prevSibling.innerHTML} ( ${deletedSpan.innerHTML} )`;
-          const results = insertSpaces(messageEdited);
-
-          if (results.length < 200) {
-            deletedSpan.innerHTML = messageEdited;
-          } else {
-            deletedSpan.innerHTML = results;
-          }
-
-          message.style.backgroundColor = "rgba(139, 0, 0, 0.6)";
-          deletedSpan.style.color = ""; // Reset colore
-          deletedSpan.dataset.processed = "true";
-        }
-        const showOriginal = message.querySelector("#show-original");
-        if (showOriginal) {
-          showOriginal.remove();
-        }
-      }
-    }
-  });
-
-  resizeEmojis(chatDoc);
-}
-
-function resizeEmojis(chatDoc) {
-  const emojis = chatDoc.querySelectorAll("img.style-scope.yt-live-chat-text-message-renderer");
-  emojis.forEach((emoji) => {
-    emoji.style.width = "24px";
-    emoji.style.height = "24px";
+    processDeletedMessages(message);
   });
 }
 
