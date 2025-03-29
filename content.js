@@ -68,7 +68,7 @@ function processDeletedMessages(message) {
       let deletedText = deletedSpan.innerText.trim();
 
       console.log(`🔨 Processo messaggio eliminato: ${messageSpan.innerHTML}`);
-      customLog(`🔨 Processo messaggio eliminato da: ${deletedSpan.innerText}`)
+      customLog(`🔨 Processo ${deletedSpan.innerText}`)
 
       messageSpan.innerHTML += ` (${deletedText})`;
       deletedSpan.innerText = "";
@@ -94,12 +94,7 @@ function updateDeletedMessages() {
   messages.forEach((message) => {
     let mod = false
     let badges = message.querySelectorAll("yt-live-chat-author-badge-renderer");
-    badges.forEach(element => {
-      if (element.ariaLabel === "Moderatore"){
-        mod = true;
-      }
-    });
-    // Evidenzia solo i messaggi non eliminati
+    mod = badges.some(badge => badge.ariaLabel === "Moderatore")
     if (!message.dataset.highlighted && !mod) {
       highlightMessageWords(message);
       message.dataset.highlighted = "true";
