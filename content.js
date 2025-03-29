@@ -1,9 +1,24 @@
-
-
-
-
-const highlightWords = ["schifo", "merda", "dio", "madonna", "fascista", "razzista","reveal", "faccia", "stronza", "chiami", "fidanzato", "fidanzata", "inizia", "iniziamo", "giochiamo", "canale"]
-
+const highlightWords = [
+  "schifo",
+  "merda",
+  "dio",
+  "madonna",
+  "fascista",
+  "razzista",
+  "reveal",
+  "faccia",
+  "stronza",
+  "fidanzato",
+  "fidanzata",
+  "inizia",
+  "iniziamo",
+  "giochiamo",
+  "canale",
+  "iscriviti",
+  "iscrivetevi",
+  "seguitemi",
+  "ritardato"
+]
 function customLog(message) {
   console.log(message); // continua a loggare in console normale
   chrome.storage.local.get({ logEntries: [] }, (data) => {
@@ -58,7 +73,6 @@ function insertSpaces(str) {
   return result;
 }
 
-
 function getChatFrameDocument() {
   const iframe = document.querySelector("iframe#chatframe");
   return iframe ? iframe.contentDocument || iframe.contentWindow.document : null;
@@ -73,22 +87,20 @@ function highlightMessageWords(messageElement) {
   const deletedSpan = messageElement.querySelector("#deleted-state");
 
   // Solo se NON è eliminato
-  if (!deletedSpan.dataset.processed) {
-    let messageHTML = messageSpan.innerHTML;
-    highlightWords.forEach(word => {
-      let regex = new RegExp(`\\b${word}\\b`, 'gi');
+  let messageHTML = messageSpan.innerHTML;
+  highlightWords.forEach(word => {
+    let regex = new RegExp(`\\b${word}\\b`, 'gi');
 
-      // Assegniamo il risultato della sostituzione
-      let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
-
-      // Log solo se è stato effettivamente modificato
-      if (newMessageHTML !== messageHTML) {
-        customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
-        messageHTML = newMessageHTML;
-      }
+    // Assegniamo il risultato della sostituzione
+    let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
+    // Log solo se è stato effettivamente modificato
+    if (newMessageHTML !== messageHTML) {
+      messageElement.style.backgroundColor = "rgba(224,195,8,0.87)";
+      customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
+      messageHTML = newMessageHTML;
+    }
     });
     messageSpan.innerHTML = messageHTML;
-  }
 }
 
 function updateDeletedMessages() {
@@ -100,11 +112,17 @@ function updateDeletedMessages() {
 
   const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
   messages.forEach((message) => {
+    let mod = false
     const prevSibling = message.querySelector("#message");
     const deletedSpan = message.querySelector("#deleted-state");
-
+    let badges = message.querySelectorAll("yt-live-chat-author-badge-renderer");
+    badges.forEach(element => {
+      if (element.ariaLabel === "Moderatore"){
+        mod = true;
+      }
+    });
     // Evidenzia solo i messaggi non eliminati
-    if (!message.dataset.highlighted) {
+    if (!message.dataset.highlighted && !mod) {
       highlightMessageWords(message);
       message.dataset.highlighted = "true";
     }
@@ -125,7 +143,6 @@ function updateDeletedMessages() {
 
           message.style.backgroundColor = "rgba(139, 0, 0, 0.6)";
           deletedSpan.style.color = ""; // Reset colore
-          deletedSpan.style.textDecoration = "underline";
           deletedSpan.dataset.processed = "true";
         }
         const showOriginal = message.querySelector("#show-original");
@@ -135,6 +152,7 @@ function updateDeletedMessages() {
       }
     }
   });
+
   resizeEmojis(chatDoc);
 }
 
@@ -169,4 +187,3 @@ const checkInterval = setInterval(() => {
     setInterval(updateDeletedMessages, 1000);
   }
 }, 1000);
-
