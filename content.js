@@ -1,24 +1,4 @@
-const highlightWords = [
-  "schifo",
-  "merda",
-  "dio",
-  "madonna",
-  "fascista",
-  "razzista",
-  "reveal",
-  "faccia",
-  "stronza",
-  "fidanzato",
-  "fidanzata",
-  "inizia",
-  "iniziamo",
-  "giochiamo",
-  "canale",
-  "iscriviti",
-  "iscrivetevi",
-  "seguitemi",
-  "ritardato"
-]
+let highlightWords = []
 function customLog(message) {
   console.log(message); // continua a loggare in console normale
   chrome.storage.local.get({ logEntries: [] }, (data) => {
@@ -27,6 +7,17 @@ function customLog(message) {
     if (logs.length > 50) logs.shift(); // mantieni max 50 log
     chrome.storage.local.set({ logEntries: logs });
   });
+}
+
+async function loadHighlightWords() {
+  try {
+    const response = await fetch(chrome.runtime.getURL("words.json"));
+    const data = await response.json();
+    highlightWords = data.highlightWords || [];
+    customLog("📂 Parole evidenziate caricate da words.json");
+  } catch (error) {
+    customLog("❌ Errore nel caricamento di words.json: " + error);
+  }
 }
 
 function getChatFrameDocument() {
@@ -116,12 +107,13 @@ function startObserver() {
   updateDeletedMessages();
 }
 
-const checkInterval = setInterval(() => {
+const checkInterval = setInterval(async () => {
   const chatDoc = getChatFrameDocument();
   const chatContainer = chatDoc ? getChatContainer(chatDoc) : null;
   if (chatDoc && chatContainer) {
     customLog("✅ Chat iframe e contenitore trovati, avvio script...");
     clearInterval(checkInterval);
+    await loadHighlightWords();
     startObserver();
     setInterval(updateDeletedMessages, 1000);
   }
