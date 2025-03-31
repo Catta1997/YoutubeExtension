@@ -38,7 +38,7 @@ function highlightMessageWords(messageElement) {
 
     let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
     if (newMessageHTML !== messageHTML) {
-      messageElement.style.backgroundColor = "rgba(224,195,8,0.87)";
+      messageElement.style.backgroundColor = "rgba(180,159,23,0.87)";
       customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
       messageHTML = newMessageHTML;
     }
@@ -83,9 +83,10 @@ function updateDeletedMessages() {
 
   const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
   messages.forEach((message) => {
-    let mod = false
-    let badges = message.querySelectorAll("yt-live-chat-author-badge-renderer");
-    mod = badges.some(badge => badge.ariaLabel === "Moderatore")
+    let mod = message?.getAttribute('author-type') === 'moderator'
+    if (mod) {
+      message.style.backgroundColor = 'rgba(79,221,221,0.43)'
+    }
     if (!message.dataset.highlighted && !mod) {
       highlightMessageWords(message);
       message.dataset.highlighted = "true";
