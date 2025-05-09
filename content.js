@@ -5,7 +5,7 @@ function customLog(message) {
     const logs = data.logEntries;
     logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
     if (logs.length > 50) logs.shift(); // mantieni max 50 log
-    chrome.storage.local.set({ logEntries: logs });
+    chrome.storage.local.set({logEntries: logs}).then();
   });
 }
 
@@ -13,7 +13,7 @@ async function loadHighlightWords() {
   try {
     const response = await fetch(chrome.runtime.getURL("words.json"));
     const data = await response.json();
-    highlightWords = data.highlightWords || [];
+    highlightWords = data.highlightWords ? data.highlightWords : [];
     customLog("📂 Parole evidenziate caricate da words.json");
   } catch (error) {
     customLog("❌ Errore nel caricamento di words.json: " + error);
@@ -36,9 +36,9 @@ function highlightMessageWords(messageElement) {
   highlightWords.forEach(word => {
     let regex = new RegExp(`\\b${word}\\b`, 'gi');
 
-    let newMessageHTML = messageHTML.replace(regex, `<span style="color: red; font-weight: bold; text-decoration: underline;">$&</span>`);
+    let newMessageHTML = messageHTML.replace(regex, `<span style="color: #ffa500; font-weight: bold; text-decoration: underline;">$&</span>`);
     if (newMessageHTML !== messageHTML) {
-      messageElement.style.backgroundColor = "rgba(180,159,23,0.87)";
+      messageElement.style.backgroundColor = "rgb(106,105,105)"; //rgb(152 102 45 / 87%)
       customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
       messageHTML = newMessageHTML;
     }
@@ -85,7 +85,7 @@ function updateDeletedMessages() {
   messages.forEach((message) => {
     let mod = message?.getAttribute('author-type') === 'moderator'
     if (mod) {
-      message.style.backgroundColor = 'rgba(79,221,221,0.43)'
+      message.style.backgroundColor = 'rgba(45,163,163,0.43)'
     }
     if (!message.dataset.highlighted && !mod) {
       highlightMessageWords(message);
@@ -119,3 +119,4 @@ const checkInterval = setInterval(async () => {
     setInterval(updateDeletedMessages, 1000);
   }
 }, 1000);
+
