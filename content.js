@@ -1,4 +1,27 @@
 let highlightWords = []
+const messages = {
+  it: {
+    wordFound: word => `🔨 Parola bannata "${word}" trovata nel messaggio.`,
+    loadingWords: "📂 Parole evidenziate caricate da words.json",
+    loadingError: err => `❌ Errore nel caricamento di words.json: ${err}`,
+    chatNotFound: "❌ Impossibile trovare il documento della chat.",
+    containerNotFound: "❌ Contenitore della chat non trovato. Riprovo...",
+    chatReady: "✅ Chat iframe e contenitore trovati, avvio script...",
+    deletedProcessed: msg => `🔨 Processo ${msg}`
+  },
+  en: {
+    wordFound: word => `🔨 Banned word "${word}" found in the message.`,
+    loadingWords: "📂 Highlight words loaded from words.json",
+    loadingError: err => `❌ Error loading words.json: ${err}`,
+    chatNotFound: "❌ Unable to find chat document.",
+    containerNotFound: "❌ Chat container not found. Retrying...",
+    chatReady: "✅ Chat iframe and container found. Starting script...",
+    deletedProcessed: msg => `🔨 Processing ${msg}`
+  }
+};
+const userLang = navigator.language.startsWith("it") ? "it" : "en";
+const log = messages[userLang];
+
 function customLog(message) {
   console.log(message); // continua a loggare in console normale
   chrome.storage.local.get({ logEntries: [] }, (data) => {
@@ -14,9 +37,10 @@ async function loadHighlightWords() {
     const response = await fetch(chrome.runtime.getURL("words.json"));
     const data = await response.json();
     highlightWords = data.highlightWords ? data.highlightWords : [];
-    customLog("📂 Parole evidenziate caricate da words.json");
+    customLog(log.loadingWords);
   } catch (error) {
-    customLog("❌ Errore nel caricamento di words.json: " + error);
+    customLog(log.loadingError(error));
+
   }
 }
 
@@ -39,7 +63,7 @@ function highlightMessageWords(messageElement) {
     let newMessageHTML = messageHTML.replace(regex, `<span style="color: #ffa500; font-weight: bold; text-decoration: underline;">$&</span>`);
     if (newMessageHTML !== messageHTML) {
       messageElement.style.backgroundColor = "rgb(106,105,105)"; //rgb(152 102 45 / 87%)
-      customLog(`🔨 Parola bannata "${word}" trovata nel messaggio: ${messageHTML}`);
+      customLog(log.wordFound(word));
       messageHTML = newMessageHTML;
     }
     });
@@ -58,9 +82,8 @@ function processDeletedMessages(message) {
       message.style.backgroundColor = "rgba(139, 0, 0, 0.6)";
       let deletedText = deletedSpan.innerText.trim();
 
-      console.log(`🔨 Processo messaggio eliminato: ${messageSpan.innerHTML}`);
-      customLog(`🔨 Processo ${deletedSpan.innerText}`)
-
+      console.log(log.deletedProcessed(deletedSpan.innerText));
+      customLog(log.deletedProcessed(deletedSpan.innerText));
       messageSpan.innerHTML += ` (${deletedText})`;
       deletedSpan.innerText = "";
 
@@ -69,7 +92,7 @@ function processDeletedMessages(message) {
         showOriginal.remove();
       }
       messageSpan.style.textDecoration = "underline";
-      messageSpan.style.color = "rgba(255, 255, 255, 0.5)";
+      //messageSpan.style.color = "rgba(255, 255, 255, 0.5)";
     }
   }
 }
@@ -77,7 +100,7 @@ function processDeletedMessages(message) {
 function updateDeletedMessages() {
   const chatDoc = getChatFrameDocument();
   if (!chatDoc) {
-    customLog("❌ Impossibile trovare il documento della chat.");
+    customLog(log.chatNotFound);
     return;
   }
 
@@ -100,7 +123,7 @@ function startObserver() {
   if (!chatDoc) return;
   const chatContainer = getChatContainer(chatDoc);
   if (!chatContainer) {
-    customLog("❌ Contenitore della chat non trovato. Riprovo...");
+    customLog(log.containerNotFound);
     return;
   }
   const observer = new MutationObserver(updateDeletedMessages);
@@ -112,11 +135,10 @@ const checkInterval = setInterval(async () => {
   const chatDoc = getChatFrameDocument();
   const chatContainer = chatDoc ? getChatContainer(chatDoc) : null;
   if (chatDoc && chatContainer) {
-    customLog("✅ Chat iframe e contenitore trovati, avvio script...");
+    customLog(log.chatReady);
     clearInterval(checkInterval);
     await loadHighlightWords();
     startObserver();
     setInterval(updateDeletedMessages, 1000);
   }
 }, 1000);
-
