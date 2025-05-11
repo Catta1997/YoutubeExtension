@@ -62,7 +62,9 @@ function highlightMessageWords(messageElement) {
 
     let newMessageHTML = messageHTML.replace(regex, `<span style="color: #ffa500; font-weight: bold; text-decoration: underline;">$&</span>`);
     if (newMessageHTML !== messageHTML) {
-      messageElement.style.backgroundColor = "rgb(106,105,105)"; //rgb(152 102 45 / 87%)
+      messageElement.style.backgroundColor = "rgb(81,81,81)"; //rgb(152 102 45 / 87%)
+      messageElement.style.border = '0.3rem solid'
+      messageElement.style.borderColor = "rgb(191,187,187)";
       customLog(log.wordFound(word));
       messageHTML = newMessageHTML;
     }
@@ -79,7 +81,9 @@ function processDeletedMessages(message) {
     let deletedSpan = message.querySelector("#deleted-state");
 
     if (messageSpan && deletedSpan) {
-      message.style.backgroundColor = "rgba(139, 0, 0, 0.6)";
+      message.style.backgroundColor = "rgb(139,0,0)";
+      message.style.border = '0.3rem solid'
+      message.style.borderColor = "rgb(202,138,138)";
       let deletedText = deletedSpan.innerText.trim();
 
       console.log(log.deletedProcessed(deletedSpan.innerText));
@@ -109,6 +113,8 @@ function updateDeletedMessages() {
     let mod = message?.getAttribute('author-type') === 'moderator'
     if (mod) {
       message.style.backgroundColor = 'rgba(45,163,163,0.43)'
+      message.style.border = '0.3rem solid'
+      message.style.borderColor = 'rgba(182,218,227,0.43)'
     }
     if (!message.dataset.highlighted && !mod) {
       highlightMessageWords(message);
