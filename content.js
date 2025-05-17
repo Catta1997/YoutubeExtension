@@ -95,7 +95,7 @@ function highlightMessageWords(messageElement) {
     const messageSpan = messageElement.querySelector("#message");
     let messageHTML = messageSpan.innerHTML;
 
-    if (!highlightWords || highlightWords.length === 0) return;
+    if (!highlightWords || highlightWords.length === 0) return false;
     // remove escape character
     const escapedWords = highlightWords.map(word =>
         word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -111,7 +111,9 @@ function highlightMessageWords(messageElement) {
     if (newMessageHTML !== messageHTML) {
         boxStyle(messageElement, "rgb(81,81,81)", "rgb(255,165,0)");
         messageSpan.innerHTML = newMessageHTML;
+        return true;
     }
+    return false;
 }
 
 function hilightMention(message) {
@@ -143,36 +145,36 @@ function highlightDeletedMessages(message) {
         if (showOriginal) {
             showOriginal.remove();
         }
+        return true
     }
+    return false;
 }
 
 function processMessage(message) {
-    const isModerator = message?.getAttribute('author-type') === 'moderator'
-    const isDelated = message.hasAttribute("is-deleted")
-    if (!message.dataset.highlighted) {
-        message.dataset.highlighted = "true";
-        if (isModerator) {
-            if (highlightMods) {
-                boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
-            }
-            return;
-        } else {
-            if (highlightEnabled) {
-                highlightMessageWords(message);
-            }
-            return
-        }
-        if (highlightMods) {
-            hilightMention(message);
-        }
+    const isModerator = message?.getAttribute('author-type') === 'moderator';
+    const isDeleted = message.hasAttribute("is-deleted");
+
+    // Esegui sempre il controllo sui messaggi cancellati
+    if (isDeleted && deletedEnabled && highlightDeletedMessages(message)) {
         return;
     }
-    if (isDelated) {
-        if (deletedEnabled) {
-            highlightDeletedMessages(message);
-        }
+    if (message.dataset.highlighted) return;
+    message.dataset.highlighted = "true";
+    // Highlight messaggi dei moderatori
+    if (isModerator && highlightMods) {
+        boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
+        return;
+    }
+    // Highlight messaggi con alcune word
+    if (!isModerator && highlightEnabled && highlightMessageWords(message)) {
+        return;
+    }
+    // Highlight menzioni
+    if (!isModerator && highlightMentions && hilightMention(message)) {
+        return;
     }
 }
+
 
 function updateDeletedMessages() {
     const chatDoc = getChatFrameDocument();
