@@ -4,6 +4,11 @@
  */
 /** @type {string[]} */
 let highlightWords = []
+let highlightEnabled = true
+let highlightMods = true;
+let highlightMentions = true;
+let deletedEnabled = true;
+
 const messages = {
     it: {
         wordFound: word => `🔨 Parola bannata "${word}" trovata nel messaggio.`,
@@ -41,6 +46,21 @@ function customLog(msg) {
         // silenzia il log se il contesto è invalidato
     }
 }
+
+async function loadSettings() {
+    chrome.storage.sync.get({
+        highlightEnabled: true,
+        highlightMods: true,
+        deletedEnabled: true,
+        highlightMentions: true
+    }, prefs => {
+        highlightEnabled = prefs.highlightEnabled;
+        deletedEnabled = prefs.deletedEnabled;
+        highlightMods = prefs.highlightMods;
+        highlightMentions = prefs.highlightMentions;
+    });
+}
+
 
 async function loadHighlightWords() {
     try {
@@ -94,41 +114,62 @@ function highlightMessageWords(messageElement) {
     }
 }
 
-/*
 function hilightMention(message) {
     const messageSpan = message.querySelector("#message");
-    if (messageSpan && messageSpan.querySelector(".mention")) {
-        console.log("✅ Trovata una mention dentro #message");
-        boxStyle(message, "rgba(68,198,17,0.58)", "rgb(33,159,29)");
+    if (messageSpan?.querySelector(".mention")) {
+        boxStyle(message, "rgba(65,113,46,0.5)", "rgb(7,101,4)");
         return true;
-    } else {
-        return false;
+    }
+    return false;
+}
+
+function highlightDeletedMessages(message) {
+    message.removeAttribute("is-deleted");
+    message.removeAttribute("show-bar");
+
+    let messageSpan = message.querySelector("#message");
+    let deletedSpan = message.querySelector("#deleted-state");
+
+    if (messageSpan && deletedSpan) {
+        boxStyle(message, "rgb(139,0,0)", "rgb(228,67,67)");
+        let deletedText = deletedSpan.innerText.trim();
+
+        console.log(log.deletedProcessed(deletedSpan.innerText));
+        customLog(log.deletedProcessed(deletedSpan.innerText));
+        messageSpan.innerHTML += ` (${deletedText})`;
+        deletedSpan.innerText = "";
+
+        const showOriginal = message.querySelector("#show-original");
+        if (showOriginal) {
+            showOriginal.remove();
+        }
     }
 }
-*/
 
-function processDeletedMessages(message) {
-    if (message.hasAttribute("is-deleted")) {
-        message.removeAttribute("is-deleted");
-        message.removeAttribute("show-bar");
-
-        let messageSpan = message.querySelector("#message");
-        let deletedSpan = message.querySelector("#deleted-state");
-
-        if (messageSpan && deletedSpan) {
-            boxStyle(message, "rgb(139,0,0)", "rgb(228,67,67)");
-            let deletedText = deletedSpan.innerText.trim();
-
-            console.log(log.deletedProcessed(deletedSpan.innerText));
-            customLog(log.deletedProcessed(deletedSpan.innerText));
-            messageSpan.innerHTML += ` (${deletedText})`;
-            deletedSpan.innerText = "";
-
-            const showOriginal = message.querySelector("#show-original");
-            if (showOriginal) {
-                showOriginal.remove();
+function processMessage(message) {
+    const isModerator = message?.getAttribute('author-type') === 'moderator'
+    const isDelated = message.hasAttribute("is-deleted")
+    if (!message.dataset.highlighted) {
+        message.dataset.highlighted = "true";
+        if (isModerator) {
+            if (highlightMods) {
+                boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
             }
-            //messageSpan.style.textDecoration = "underline";
+            return;
+        } else {
+            if (highlightEnabled) {
+                highlightMessageWords(message);
+            }
+            return
+        }
+        if (highlightMods) {
+            hilightMention(message);
+        }
+        return;
+    }
+    if (isDelated) {
+        if (deletedEnabled) {
+            highlightDeletedMessages(message);
         }
     }
 }
@@ -141,18 +182,8 @@ function updateDeletedMessages() {
     }
 
     const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
-    messages.forEach((message) => {
-        let mod = message?.getAttribute('author-type') === 'moderator'
-        if (!message.dataset.highlighted) {
-            message.dataset.highlighted = "true";
-            //const mention = hilightMention(message);
-            if (mod) {
-                boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
-            } else {
-                highlightMessageWords(message);
-            }
-        }
-        processDeletedMessages(message);
+    messages.forEach(message => {
+        processMessage(message)
     });
 }
 
@@ -178,7 +209,12 @@ const checkInterval = setInterval(async () => {
     if (chatDoc && chatContainer) {
         customLog(log.chatReady);
         clearInterval(checkInterval);
+        await loadSettings();
         await loadHighlightWords();
+        console.log("highlightMentions: ", highlightMentions)
+        console.log("highlightMods: ", highlightMods)
+        console.log("deletedEnabled: ", deletedEnabled)
+        console.log("highlightEnabled: ", highlightEnabled)
         startObserver();
         setInterval(updateDeletedMessages, 1000);
     }
