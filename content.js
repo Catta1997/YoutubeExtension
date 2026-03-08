@@ -8,6 +8,7 @@ let highlightEnabled = true
 let highlightMods = true;
 let highlightMentions = true;
 let deletedEnabled = true;
+let globalEnabled = true;
 
 const messages = {
     it: {
@@ -58,6 +59,15 @@ async function loadSettings() {
         deletedEnabled = prefs.deletedEnabled;
         highlightMods = prefs.highlightMods;
         highlightMentions = prefs.highlightMentions;
+    });
+}
+
+function loadGlobalEnabled() {
+    return new Promise(resolve => {
+        chrome.storage.local.get({ globalEnabled: true }, data => {
+            globalEnabled = data.globalEnabled;
+            resolve();
+        });
     });
 }
 
@@ -146,9 +156,49 @@ function highlightDeletedMessages(message) {
     }
 }
 
+function updateToggleButton(toggle, enabled) {
+    toggle.textContent = enabled ? 'ON' : 'OFF';
+    toggle.style.background = enabled ? '#4CAF50' : '#f44336';
+}
+
+function injectToggleButton(chatDoc) {
+    if (chatDoc.getElementById('yt-highlighter-toggle')) return;
+
+    const header = chatDoc.querySelector('yt-live-chat-header-renderer');
+    if (!header) return;
+
+    const overflowButton = header.querySelector('#overflow-button');
+    if (!overflowButton) return;
+
+    const toggle = chatDoc.createElement('button');
+    toggle.id = 'yt-highlighter-toggle';
+    toggle.textContent = globalEnabled ? 'ON' : 'OFF';
+    toggle.style.cssText = `
+        background: ${globalEnabled ? '#4CAF50' : '#f44336'};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        margin-right: 4px;
+        align-self: center;
+    `;
+
+    toggle.addEventListener('click', () => {
+        globalEnabled = !globalEnabled;
+        chrome.storage.local.set({ globalEnabled });
+        updateToggleButton(toggle, globalEnabled);
+    });
+
+    overflowButton.parentNode.insertBefore(toggle, overflowButton);
+}
+
 function processMessage(message) {
+    if (!globalEnabled) return;
     const isModerator = message?.getAttribute('author-type') === 'moderator'
-    const isDelated = message.hasAttribute("is-deleted")
+    const isDeleted = message.hasAttribute("is-deleted")
     if (!message.dataset.highlighted) {
         message.dataset.highlighted = "true";
         if (isModerator) {
@@ -167,7 +217,7 @@ function processMessage(message) {
         }
         return;
     }
-    if (isDelated) {
+    if (isDeleted) {
         if (deletedEnabled) {
             highlightDeletedMessages(message);
         }
@@ -195,6 +245,7 @@ function startObserver() {
         customLog(log.containerNotFound);
         return;
     }
+    injectToggleButton(chatDoc);
     const observer = new MutationObserver(updateDeletedMessages);
     observer.observe(chatContainer, {childList: true, subtree: true});
     console.log("✅ content.js caricato");
@@ -203,18 +254,31 @@ function startObserver() {
     updateDeletedMessages();
 }
 
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.globalEnabled !== undefined) {
+        globalEnabled = changes.globalEnabled.newValue;
+        const chatDoc = getChatFrameDocument();
+        if (chatDoc) {
+            const toggle = chatDoc.getElementById('yt-highlighter-toggle');
+            if (toggle) updateToggleButton(toggle, globalEnabled);
+        }
+    }
+});
+
 const checkInterval = setInterval(async () => {
     const chatDoc = getChatFrameDocument();
     const chatContainer = chatDoc ? getChatContainer(chatDoc) : null;
     if (chatDoc && chatContainer) {
         customLog(log.chatReady);
         clearInterval(checkInterval);
+        await loadGlobalEnabled();
         await loadSettings();
         await loadHighlightWords();
         console.log("highlightMentions: ", highlightMentions)
         console.log("highlightMods: ", highlightMods)
         console.log("deletedEnabled: ", deletedEnabled)
         console.log("highlightEnabled: ", highlightEnabled)
+        console.log("globalEnabled: ", globalEnabled)
         startObserver();
         setInterval(updateDeletedMessages, 1000);
     }
