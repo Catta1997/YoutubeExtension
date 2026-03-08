@@ -9,6 +9,7 @@ let highlightMods = true;
 let highlightMentions = true;
 let deletedEnabled = true;
 let newUserEnabled = true;
+let globalEnabled = true;
 
 const messages = {
     it: {
@@ -49,6 +50,7 @@ function customLog(msg) {
 }
 
 async function loadSettings() {
+    if (!chrome?.storage?.sync) return;
     chrome.storage.sync.get({
         highlightEnabled: true,
         highlightMods: true,
@@ -61,6 +63,16 @@ async function loadSettings() {
         newUserEnabled = prefs.newUserEnabled;
         highlightMods = prefs.highlightMods;
         highlightMentions = prefs.highlightMentions;
+    });
+}
+
+function loadGlobalEnabled() {
+    return new Promise(resolve => {
+        if (!chrome?.storage?.local) { resolve(); return; }
+        chrome.storage.local.get({ globalEnabled: true }, data => {
+            globalEnabled = data.globalEnabled;
+            resolve();
+        });
     });
 }
 
@@ -217,7 +229,49 @@ function highlightDeletedMessages(message) {
     return false;
 }
 
+function updateToggleButton(toggle, enabled) {
+    toggle.textContent = enabled ? 'ON' : 'OFF';
+    toggle.style.background = enabled ? '#4CAF50' : '#f44336';
+}
+
+function injectToggleButton(chatDoc) {
+    if (chatDoc.getElementById('yt-highlighter-toggle')) return;
+
+    const header = chatDoc.querySelector('yt-live-chat-header-renderer');
+    if (!header) return;
+
+    const toggle = chatDoc.createElement('button');
+    toggle.id = 'yt-highlighter-toggle';
+    toggle.textContent = globalEnabled ? 'ON' : 'OFF';
+    toggle.style.cssText = `
+        background: ${globalEnabled ? '#4CAF50' : '#f44336'};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        margin-right: 4px;
+        align-self: center;
+    `;
+
+    toggle.addEventListener('click', () => {
+        globalEnabled = !globalEnabled;
+        chrome.storage.local.set({ globalEnabled });
+        updateToggleButton(toggle, globalEnabled);
+    });
+
+    const overflowButton = header.querySelector('#overflow-button');
+    if (overflowButton) {
+        overflowButton.parentNode.insertBefore(toggle, overflowButton);
+    } else {
+        header.appendChild(toggle);
+    }
+}
+
 function processMessage(message) {
+    if (!globalEnabled) return;
     const isModerator = message?.getAttribute('author-type') === 'moderator';
     const isOwner = message?.getAttribute('author-type') === 'owner';
     if(isOwner) return;
@@ -259,6 +313,7 @@ function updateDeletedMessages() {
         return;
     }
 
+    injectToggleButton(chatDoc);
     const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
     messages.forEach(message => {
         processMessage(message)
@@ -273,6 +328,7 @@ function startObserver() {
         customLog(log.containerNotFound);
         return;
     }
+    injectToggleButton(chatDoc);
     const observer = new MutationObserver(mutations => {
         for (const m of mutations) {
             for (const node of m.addedNodes) {
@@ -289,12 +345,24 @@ function startObserver() {
     updateDeletedMessages();
 }
 
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.globalEnabled !== undefined) {
+        globalEnabled = changes.globalEnabled.newValue;
+        const chatDoc = getChatFrameDocument();
+        if (chatDoc) {
+            const toggle = chatDoc.getElementById('yt-highlighter-toggle');
+            if (toggle) updateToggleButton(toggle, globalEnabled);
+        }
+    }
+});
+
 const checkInterval = setInterval(async () => {
     const chatDoc = getChatFrameDocument();
     const chatContainer = chatDoc ? getChatContainer(chatDoc) : null;
     if (chatDoc && chatContainer) {
         customLog(log.chatReady);
         clearInterval(checkInterval);
+        await loadGlobalEnabled();
         await loadSettings();
         await loadHighlightWords();
         console.log("highlightMentions: ", highlightMentions)
@@ -303,6 +371,7 @@ const checkInterval = setInterval(async () => {
         console.log("highlightEnabled: ", highlightEnabled)
         console.log("highlightMentions: ", highlightMentions)
         console.log("newUserEnabled: ", newUserEnabled)
+        console.log("globalEnabled: ", globalEnabled)
         startObserver();
         setInterval(updateDeletedMessages, 1000);
     }
