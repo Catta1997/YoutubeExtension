@@ -103,7 +103,6 @@ function boxStyle(element, backround, border) {
     element.style.borderColor = border;
 }
 
-
 function highlightMessageWords(messageElement) {
     const messageSpan = messageElement.querySelector("#message");
     const walker = document.createTreeWalker(messageSpan, NodeFilter.SHOW_TEXT);
@@ -198,6 +197,7 @@ function hilightNewUser(message) {
     return false;
 }
 
+
 function highlightDeletedMessages(message) {
     message.removeAttribute("is-deleted");
     message.removeAttribute("show-bar");
@@ -268,6 +268,9 @@ function injectToggleButton(chatDoc) {
 
 function processMessage(message) {
     if (!globalEnabled) return;
+}
+
+function processMessage(message) {
     const isModerator = message?.getAttribute('author-type') === 'moderator';
     const isOwner = message?.getAttribute('author-type') === 'owner';
     if(isOwner) return;
@@ -300,6 +303,7 @@ function processMessage(message) {
         console.log("New Menton")
     }
 }
+
 
 function updateDeletedMessages() {
     const chatDoc = getChatFrameDocument();
