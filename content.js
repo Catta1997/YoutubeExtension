@@ -8,6 +8,7 @@ let highlightEnabled = true
 let highlightMods = true;
 let highlightMentions = true;
 let deletedEnabled = true;
+let newUserEnabled = true;
 let globalEnabled = true;
 
 const messages = {
@@ -53,10 +54,12 @@ async function loadSettings() {
         highlightEnabled: true,
         highlightMods: true,
         deletedEnabled: true,
+        newUserEnabled: true,
         highlightMentions: true
     }, prefs => {
         highlightEnabled = prefs.highlightEnabled;
         deletedEnabled = prefs.deletedEnabled;
+        newUserEnabled = prefs.newUserEnabled;
         highlightMods = prefs.highlightMods;
         highlightMentions = prefs.highlightMentions;
     });
@@ -103,9 +106,54 @@ function boxStyle(element, backround, border) {
 
 function highlightMessageWords(messageElement) {
     const messageSpan = messageElement.querySelector("#message");
+    const walker = document.createTreeWalker(messageSpan, NodeFilter.SHOW_TEXT);
+
+    let found = false;
+
+    const escapedWords = highlightWords.map(w =>
+        w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    const regex = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
+
+    let node;
+    while ((node = walker.nextNode())) {
+        const original = node.nodeValue;
+        if (!regex.test(original)) continue;
+
+        found = true;
+        customLog(log.wordFound(original));
+
+        const fragment = document.createDocumentFragment();
+        const parts = original.split(regex);
+
+        parts.forEach((part, i) => {
+            if (i % 2 === 1) {
+                const span = document.createElement("span");
+                span.style.color = "#ffa500";
+                span.style.fontWeight = "bold";
+                span.style.textDecoration = "underline";
+                span.textContent = part;
+                fragment.appendChild(span);
+            } else {
+                fragment.appendChild(document.createTextNode(part));
+            }
+        });
+
+        node.replaceWith(fragment);
+    }
+
+    if (found) {
+        boxStyle(messageElement, "rgb(81,81,81)", "rgb(255,165,0)");
+    }
+
+    return found;
+}
+
+/*function highlightMessageWords(messageElement) {
+    const messageSpan = messageElement.querySelector("#message");
     let messageHTML = messageSpan.innerHTML;
 
-    if (!highlightWords || highlightWords.length === 0) return;
+    if (!highlightWords || highlightWords.length === 0) return false;
     // remove escape character
     const escapedWords = highlightWords.map(word =>
         word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -121,13 +169,30 @@ function highlightMessageWords(messageElement) {
     if (newMessageHTML !== messageHTML) {
         boxStyle(messageElement, "rgb(81,81,81)", "rgb(255,165,0)");
         messageSpan.innerHTML = newMessageHTML;
+        return true;
     }
+    return false;
 }
+*/
 
 function hilightMention(message) {
     const messageSpan = message.querySelector("#message");
     if (messageSpan?.querySelector(".mention")) {
         boxStyle(message, "rgba(65,113,46,0.5)", "rgb(7,101,4)");
+        return true;
+    }
+    return false;
+}
+
+function hilightNewUser(message) {
+    const messageSpan = message.querySelector("#author-name");
+    if (!messageSpan) return false;
+    const username = messageSpan.textContent.trim();
+    let knownUsers = JSON.parse(localStorage.getItem("knownUsers")) || [];
+    if (!knownUsers.includes(username)) {
+        boxStyle(message, "rgba(129,76,188,0.5)", "rgb(174,11,236)");
+        knownUsers.push(username);
+        localStorage.setItem("knownUsers", JSON.stringify(knownUsers));
         return true;
     }
     return false;
@@ -146,14 +211,20 @@ function highlightDeletedMessages(message) {
 
         console.log(log.deletedProcessed(deletedSpan.innerText));
         customLog(log.deletedProcessed(deletedSpan.innerText));
-        messageSpan.innerHTML += ` (${deletedText})`;
+        //messageSpan.innerHTML += ` (${deletedText})`;
+        const extra = document.createElement("span");
+        extra.textContent = ` (${deletedText})`;
+        extra.style.fontWeight = "bold";
+        messageSpan.appendChild(extra);
         deletedSpan.innerText = "";
 
         const showOriginal = message.querySelector("#show-original");
         if (showOriginal) {
             showOriginal.remove();
         }
+        return true
     }
+    return false;
 }
 
 function updateToggleButton(toggle, enabled) {
@@ -197,30 +268,36 @@ function injectToggleButton(chatDoc) {
 
 function processMessage(message) {
     if (!globalEnabled) return;
-    const isModerator = message?.getAttribute('author-type') === 'moderator'
-    const isDeleted = message.hasAttribute("is-deleted")
-    if (!message.dataset.highlighted) {
-        message.dataset.highlighted = "true";
-        if (isModerator) {
-            if (highlightMods) {
-                boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
-            }
-            return;
-        } else {
-            if (highlightEnabled) {
-                highlightMessageWords(message);
-            }
-            return
-        }
-        if (highlightMods) {
-            hilightMention(message);
-        }
+    const isModerator = message?.getAttribute('author-type') === 'moderator';
+    const isOwner = message?.getAttribute('author-type') === 'owner';
+    if(isOwner) return;
+
+    const isDeleted = message.hasAttribute("is-deleted");
+
+    if (!isModerator && newUserEnabled && hilightNewUser(message)) {
+        console.log("New user")
+    }
+    // Esegui sempre il controllo sui messaggi cancellati
+    if (isDeleted && deletedEnabled && highlightDeletedMessages(message)) {
+        console.log("New delated")
         return;
     }
-    if (isDeleted) {
-        if (deletedEnabled) {
-            highlightDeletedMessages(message);
-        }
+    if (message.dataset.highlighted) return;
+    message.dataset.highlighted = "true";
+    // Highlight messaggi dei moderatori
+    if (isModerator && highlightMods) {
+        boxStyle(message, 'rgba(45,163,163,0.5)', "rgb(45,163,163)");
+        console.log("New Mod message")
+        return;
+    }
+    // Highlight messaggi con alcune word
+    if (!isModerator && highlightEnabled && highlightMessageWords(message)) {
+        console.log("New sus message")
+        return;
+    }
+    // Highlight menzioni
+    if (!isModerator && highlightMentions && hilightMention(message)) {
+        console.log("New Menton")
     }
 }
 
@@ -240,17 +317,25 @@ function updateDeletedMessages() {
 function startObserver() {
     const chatDoc = getChatFrameDocument();
     if (!chatDoc) return;
-    const chatContainer = getChatContainer(chatDoc);
+    const chatContainer = chatDoc.querySelector("yt-live-chat-item-list-renderer");
     if (!chatContainer) {
         customLog(log.containerNotFound);
         return;
     }
     injectToggleButton(chatDoc);
-    const observer = new MutationObserver(updateDeletedMessages);
-    observer.observe(chatContainer, {childList: true, subtree: true});
-    console.log("✅ content.js caricato");
-    console.log("chrome:", typeof chrome);
-    console.log("chrome.storage:", chrome?.storage);
+    const observer = new MutationObserver(mutations => {
+        for (const m of mutations) {
+            for (const node of m.addedNodes) {
+                if (node.nodeType === 1 && node.matches("yt-live-chat-text-message-renderer")) {
+                    processMessage(node);
+                }
+            }
+        }
+    });
+    observer.observe(chatContainer, {
+        childList: true,
+        subtree: true   // NECESSARIO per vedere i renderer
+    });
     updateDeletedMessages();
 }
 
@@ -278,6 +363,8 @@ const checkInterval = setInterval(async () => {
         console.log("highlightMods: ", highlightMods)
         console.log("deletedEnabled: ", deletedEnabled)
         console.log("highlightEnabled: ", highlightEnabled)
+        console.log("highlightMentions: ", highlightMentions)
+        console.log("newUserEnabled: ", newUserEnabled)
         console.log("globalEnabled: ", globalEnabled)
         startObserver();
         setInterval(updateDeletedMessages, 1000);
