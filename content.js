@@ -50,6 +50,7 @@ function customLog(msg) {
 }
 
 async function loadSettings() {
+    if (!chrome?.storage?.sync) return;
     chrome.storage.sync.get({
         highlightEnabled: true,
         highlightMods: true,
@@ -67,6 +68,7 @@ async function loadSettings() {
 
 function loadGlobalEnabled() {
     return new Promise(resolve => {
+        if (!chrome?.storage?.local) { resolve(); return; }
         chrome.storage.local.get({ globalEnabled: true }, data => {
             globalEnabled = data.globalEnabled;
             resolve();
@@ -238,9 +240,6 @@ function injectToggleButton(chatDoc) {
     const header = chatDoc.querySelector('yt-live-chat-header-renderer');
     if (!header) return;
 
-    const overflowButton = header.querySelector('#overflow-button');
-    if (!overflowButton) return;
-
     const toggle = chatDoc.createElement('button');
     toggle.id = 'yt-highlighter-toggle';
     toggle.textContent = globalEnabled ? 'ON' : 'OFF';
@@ -263,14 +262,16 @@ function injectToggleButton(chatDoc) {
         updateToggleButton(toggle, globalEnabled);
     });
 
-    overflowButton.parentNode.insertBefore(toggle, overflowButton);
+    const overflowButton = header.querySelector('#overflow-button');
+    if (overflowButton) {
+        overflowButton.parentNode.insertBefore(toggle, overflowButton);
+    } else {
+        header.appendChild(toggle);
+    }
 }
 
 function processMessage(message) {
     if (!globalEnabled) return;
-}
-
-function processMessage(message) {
     const isModerator = message?.getAttribute('author-type') === 'moderator';
     const isOwner = message?.getAttribute('author-type') === 'owner';
     if(isOwner) return;
@@ -312,6 +313,7 @@ function updateDeletedMessages() {
         return;
     }
 
+    injectToggleButton(chatDoc);
     const messages = chatDoc.querySelectorAll("yt-live-chat-text-message-renderer");
     messages.forEach(message => {
         processMessage(message)
