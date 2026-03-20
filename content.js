@@ -150,32 +150,6 @@ function highlightMessageWords(messageElement) {
     return found;
 }
 
-/*function highlightMessageWords(messageElement) {
-    const messageSpan = messageElement.querySelector("#message");
-    let messageHTML = messageSpan.innerHTML;
-
-    if (!highlightWords || highlightWords.length === 0) return false;
-    // remove escape character
-    const escapedWords = highlightWords.map(word =>
-        word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-    const regex = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
-
-    // Replace and highlight
-    const newMessageHTML = messageHTML.replace(regex, match => {
-        customLog(log.wordFound(match));
-        return `<span style="color: #ffa500; font-weight: bold; text-decoration: underline;">${match}</span>`;
-    });
-
-    if (newMessageHTML !== messageHTML) {
-        boxStyle(messageElement, "rgb(81,81,81)", "rgb(255,165,0)");
-        messageSpan.innerHTML = newMessageHTML;
-        return true;
-    }
-    return false;
-}
-*/
-
 function hilightMention(message) {
     const messageSpan = message.querySelector("#message");
     if (messageSpan?.querySelector(".mention")) {
@@ -331,17 +305,37 @@ function startObserver() {
     injectToggleButton(chatDoc);
     const observer = new MutationObserver(mutations => {
         for (const m of mutations) {
-            for (const node of m.addedNodes) {
-                if (node.nodeType === 1 && node.matches("yt-live-chat-text-message-renderer")) {
+            // 🔹 Nuovi messaggi aggiunti
+            if (m.type === "childList") {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    const renderer = node.matches("yt-live-chat-text-message-renderer") ? node : node.querySelector("yt-live-chat-text-message-renderer");
+                    if (renderer) {
+                        console.log("New Message"); // ✅ come prima
+                        processMessage(renderer);
+                    }
+                }
+            }
+
+            // 🔹 Controllo modifiche attributi
+            if (m.type === "attributes" && (m.attributeName === "is-deleted")) {
+                const node = m.target;
+                if (node.matches("yt-live-chat-text-message-renderer")) {
+                    console.log("New Deleted / Updated Message"); // ✅ log per attributi
                     processMessage(node);
                 }
             }
         }
     });
+
     observer.observe(chatContainer, {
         childList: true,
-        subtree: true   // NECESSARIO per vedere i renderer
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["is-deleted"]
     });
+
+    // 🔹 processa subito i messaggi già presenti all’avvio
     updateDeletedMessages();
 }
 
